@@ -4,7 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import requests
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
 
 # Функция для загрузки данных
 def load_data(file):
@@ -19,7 +18,7 @@ def calculate_rolling_stats(data):
     data['anomaly'] = np.abs(data['temperature'] - data['rolling_mean']) > 2 * data['rolling_std']
     return data
 
-# Функция для получения текущей температуры через openWeather - синхрон
+# Функция для получения текущей температуры через OpenWeatherMap API (синхронный метод)
 def get_current_weather(api_key, city):
     url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
     response = requests.get(url)
@@ -32,6 +31,7 @@ def get_current_weather(api_key, city):
         error_data = response.json()
         return None, error_data
 
+# Функция для определения сезона
 def get_season(month):
     if month in [12, 1, 2]:
         return "Зима"
@@ -42,13 +42,8 @@ def get_season(month):
     elif month in [9, 10, 11]:
         return "Осень"
 
-def parallel_analysis(data):
-    with ThreadPoolExecutor() as executor:
-        results = list(executor.map(calculate_rolling_stats, [data]))
-    return results[0]
-
 def main():
-    # Дизайник хотя бы какой то
+    # Дизайн хоть какой то ...
     st.markdown(
         """
         <style>
@@ -98,19 +93,13 @@ def main():
 
     st.title('Анализ температурных данных с помощью Streamlit и мониторинг текущей температуры')
 
-    # Загрузка csv
+    # Загрузка CSV
     uploaded_file = st.file_uploader("Выберите CSV-файл", type=['csv'])
     if uploaded_file is not None:
         data = load_data(uploaded_file)
+        data = calculate_rolling_stats(data)
 
-        st.subheader("Анализ данных с распараллеливанием")
-        with st.spinner("Выполняется анализ данных..."):
-            start_time = datetime.now()
-            data = parallel_analysis(data)
-            end_time = datetime.now()
-            st.write(f"Время выполнения анализа с распараллеливанием: {(end_time - start_time).total_seconds():.2f} секунд")
-
-        # Пик города
+        # Выбор города
         city = st.selectbox('Выберите город', data['city'].unique())
         city_data = data[data['city'] == city]
 
@@ -145,6 +134,9 @@ def main():
         if api_key:  # Если ключ введен
             current_temp, weather_data = get_current_weather(api_key, city)
             if current_temp is not None:
+                st.write(f"Текущая температура в {city}: {current_temp}°C")
+                st.write(f"Погода: {weather_data}")
+
                 # Сравнение с историческими данными
                 season = get_season(datetime.now().month)
                 historical_data = city_data[city_data['season'] == season]
@@ -160,7 +152,7 @@ def main():
                     st.error(f"Ошибка: {weather_data['message']}")
                 else:
                     st.error("Не удалось получить данные о текущей температуре. Проверьте название города.")
-        else:  # Если ключ не ввели
+        else:  # Если ключ не введен
             st.warning("Введите API-ключ для получения текущей температуры.")
 
 if __name__ == '__main__':
